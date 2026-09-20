@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jordan Banh — Engineering Portfolio</title>
+<meta name="description" content="Jordan Banh — Biomedical &amp; Mechanical Engineering co-op student. An interactive 3D portfolio of reliability engineering, CAD, and design work.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Display&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Loading state -->
+  <div id="loading-screen" aria-hidden="true">
+    <div class="loading-mark">
+      <span class="loading-ring"></span>
+      <p>LOADING BENCH<span class="dots">…</span></p>
+    </div>
+  </div>
+
+  <!-- Intro / entry screen -->
+  <div id="intro-screen" role="dialog" aria-label="Welcome">
+    <div class="intro-panel">
+      <p class="tb-field">SHEET 1 OF 1 &nbsp;·&nbsp; SCALE: NTS &nbsp;·&nbsp; REV A</p>
+      <h1>Jordan Banh</h1>
+      <p class="intro-sub">Biomedical &amp; Mechanical Engineering — an interactive bench of what I've been building.</p>
+      <p class="intro-help">Drag to orbit the landscape. Click a stone to explore — there are three to find. Everything here also works as plain text.</p>
+      <div class="intro-actions">
+        <button id="enter-btn" class="btn-primary">Enter the bench</button>
+        <button id="enter-text-btn" class="btn-ghost">Skip to text version</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3D scene -->
+  <div id="scene-container">
+    <canvas id="bench-canvas" role="img" aria-label="Interactive 3D landscape with three engraved stone monoliths — About Me, Work Experience, Projects — arranged around a decorative DNA-and-gear sculpture"></canvas>
+  </div>
+
+  <div id="vignette" aria-hidden="true"></div>
+
+  <!-- HUD -->
+  <header id="hud-top">
+    <div class="title-block">
+      <span class="tb-name">JORDAN BANH</span>
+      <span class="tb-sub">BIOMEDICAL &amp; MECHANICAL ENGINEERING</span>
+      <div class="tb-progress" aria-label="Sections explored">
+        <span class="progress-dot" data-id="about" title="About"></span>
+        <span class="progress-dot" data-id="work-experience" title="Work Experience"></span>
+        <span class="progress-dot" data-id="projects" title="Projects"></span>
+        <span class="progress-count">0/3 explored</span>
+      </div>
+    </div>
+    <nav id="hud-nav" aria-label="Sections">
+      <button type="button" data-node="about" title="Bio, background, and what drives me">About</button>
+      <button type="button" data-node="work-experience" title="My CertainTeed co-op role and what I did there">Work Experience</button>
+      <button type="button" data-node="projects" title="Chopper frame, burner bushing wall, Hed-1">Projects</button>
+      <button type="button" id="contact-btn" title="Email, LinkedIn, phone">Contact</button>
+      <button type="button" id="resume-btn" title="Preview or download my résumé">Resume</button>
+      <button type="button" id="theme-toggle" aria-pressed="false" title="Switch between day and night">Night Mode</button>
+    </nav>
+  </header>
+
+  <button type="button" id="text-toggle">View as text</button>
+
+  <p id="legend">drag to orbit &nbsp;·&nbsp; click a stone to explore &nbsp;·&nbsp; esc to reset</p>
+
+  <!-- Info pop-out -->
+  <div id="panel-backdrop"></div>
+  <aside id="info-panel" aria-live="polite" role="dialog" aria-label="Section details">
+    <button type="button" id="panel-expand" aria-label="Expand panel" aria-pressed="false" title="Expand">&#10530;</button>
+    <button type="button" id="panel-close" aria-label="Close panel">&times;</button>
+    <div class="panel-content">
+      <p class="panel-kicker"></p>
+      <h2 class="panel-title"></h2>
+      <p class="panel-meta"></p>
+      <div class="panel-stats"></div>
+      <div class="panel-gallery"></div>
+      <div class="panel-body"></div>
+      <div class="panel-tags"></div>
+    </div>
+  </aside>
+
+  <!-- Contact modal -->
+  <div id="contact-modal" role="dialog" aria-label="Contact">
+    <div class="contact-card">
+      <button type="button" id="contact-close" aria-label="Close contact">&times;</button>
+      <p class="tb-field">CONTACT</p>
+      <h2>Let's talk</h2>
+      <ul class="contact-list">
+        <li><span>Email</span><a href="mailto:jordanbanh@cmail.carleton.ca">jordanbanh@cmail.carleton.ca</a></li>
+        <li><span>LinkedIn</span><a href="https://www.linkedin.com/in/jordan-banh/" target="_blank" rel="noopener">linkedin.com/in/jordan-banh</a></li>
+        <li><span>Phone</span><a href="tel:+16137167146">+1 (613) 716-7146</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Resume modal -->
+  <div id="resume-modal" role="dialog" aria-label="Résumé">
+    <div class="resume-card">
+      <div class="resume-card-header">
+        <p class="tb-field">RESUME</p>
+        <div class="resume-card-actions">
+          <a id="resume-download" class="btn-primary" href="resume/Jordan-Banh-Resume.pdf" download="Jordan-Banh-Resume.pdf">Download PDF</a>
+          <button type="button" id="resume-close" aria-label="Close résumé">&times;</button>
+        </div>
+      </div>
+      <iframe id="resume-frame" src="" title="Jordan Banh's résumé — scrollable preview"></iframe>
+      <p class="resume-fallback">
+        Preview not loading? <a href="resume/Jordan-Banh-Resume.pdf" target="_blank" rel="noopener">open the PDF directly</a>.
+      </p>
+    </div>
+  </div>
+
+  <!-- Photo lightbox -->
+  <div id="lightbox" aria-hidden="true">
+    <button type="button" id="lightbox-close" aria-label="Close photo">&times;</button>
+    <img id="lightbox-img" src="" alt="">
+    <p id="lightbox-caption"></p>
+  </div>
+
+  <!-- Accessible / no-WebGL text fallback -->
+  <section id="text-fallback" hidden aria-label="Portfolio contents as text"></section>
+
+  <div id="toast-container" aria-live="polite"></div>
+  <div id="confetti-layer" aria-hidden="true"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/model-data.js"></script>
+  <script src="js/scene.js"></script>
+  <script src="js/model-viewer.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
