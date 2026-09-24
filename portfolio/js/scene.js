@@ -19,6 +19,13 @@
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // Phones and tablets get a materially lighter scene. The desktop counts
+  // below are tuned for a discrete GPU with headroom; a handset has neither
+  // the memory for a million instances nor the fill rate to shade them, and
+  // point-light shadows are six cube-face renders per frame on top of that.
+  const MOBILE = window.matchMedia("(pointer: coarse)").matches &&
+    Math.min(window.innerWidth, window.innerHeight) < 820;
+
   let scene, camera, renderer, controls, raycaster, pointer;
   let hub, terrainMesh, sky, stars, lantern;
   let ambientLight, keyLight, rimLight, rimLight2, hemiLight;
@@ -80,8 +87,8 @@
   const GRASS_BLADE_HEIGHT = 0.76; // world units, average blade length
   const GRASS_BLADE_HEIGHT_VARIANCE = 0.55; // +/- fraction, randomized per blade
   const GRASS_BLADE_WIDTH = 0.025;
-  const GRASS_BLADE_COUNT = 900000;
-  const GRASS_FIELD_RADIUS = 36; // grass grows within this radius of the hub (inside the island rim)
+  const GRASS_BLADE_COUNT = MOBILE ? 70000 : 900000;
+  const GRASS_FIELD_RADIUS = MOBILE ? 26 : 36; // grass grows within this radius of the hub (inside the island rim)
   const grassUniforms = {
     uTime: { value: 0 },
     uWindStrength: { value: reducedMotion ? 0 : 0.09 }
@@ -90,9 +97,9 @@
   // Other scene population counts — all cheap to raise now that trees are
   // instanced and particles are GPU-animated (see buildTrees/buildParticles
   // below), but see the reply for realistic ranges before going wild here.
-  const TREE_COUNT = 700;
-  const STAR_COUNT = 500;
-  const PARTICLE_COUNT = 600;
+  const TREE_COUNT = MOBILE ? 220 : 700;
+  const STAR_COUNT = MOBILE ? 220 : 500;
+  const PARTICLE_COUNT = MOBILE ? 180 : 600;
   const particleUniforms = { uTime: { value: 0 } };
 
   function terrainHeight(x, z) {
@@ -164,7 +171,7 @@
       camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 220);
 
       renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2));
       renderer.setSize(window.innerWidth, window.innerHeight);
 
       // --- The "rendered, not drawn" pipeline -----------------------------
@@ -284,7 +291,7 @@
     keyLight = new THREE.DirectionalLight(KEY_DAY.getHex(), 0.95);
     keyLight.position.copy(sunPosition);
     keyLight.castShadow = true;
-    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
     // A tight ortho frustum around the island only. Shadow quality is
     // resolution-per-world-unit, so shrinking this box is worth far more
     // than raising mapSize.
@@ -368,7 +375,7 @@
       return; // post-processing scripts failed to load — fall back to direct render
     }
     composer = new THREE.EffectComposer(renderer);
-    composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    composer.setPixelRatio(Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2));
     composer.setSize(window.innerWidth, window.innerHeight);
     composer.addPass(new THREE.RenderPass(scene, camera));
 
@@ -386,24 +393,78 @@
   // sometimes roughnessMap) so flat-shaded surfaces pick up real surface
   // irregularity instead of looking like smooth plastic. Reused across
   // many materials rather than regenerated per-instance.
-  function makeNoiseTexture(size, blurPx, contrastPct) {
-    const raw = document.createElement("canvas");
-    raw.width = size; raw.height = size;
-    const rctx = raw.getContext("2d");
-    const img = rctx.createImageData(size, size);
-    for (let i = 0; i < size * size; i++) {
-      const v = Math.floor(Math.random() * 255);
-      img.data[i * 4] = v; img.data[i * 4 + 1] = v; img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255;
+  // Separable box blur over a single greyscale channel, with wrap-around
+  // addressing. Three passes approximate a gaussian closely enough for
+  // surface grain, and wrapping means the result tiles without a seam.
+  //
+  // This is done by hand rather than with the canvas `filter` property on
+  // purpose: Safari did not support CanvasRenderingContext2D.filter until
+  // version 18, and the assignment fails SILENTLY. On older iOS that left
+  // every one of these textures as raw per-pixel white noise, which — once
+  // magnified across the sky dome — covered the whole scene in hard blocks.
+  function blurGrayWrapped(src, size, radius) {
+    if (radius <= 0) return src;
+    // The narrowest box is 3 wide, so sub-pixel radii clamp to 1 and take a
+    // single pass instead of three — three passes at r=1 is far blurrier
+    // than the sub-pixel blur these call sites are asking for.
+    const r = Math.max(1, Math.round(radius));
+    const passes = radius < 1.5 ? 1 : 3;
+    const win = r * 2 + 1;
+    let a = src;
+    let b = new Float32Array(size * size);
+
+    for (let p = 0; p < passes; p++) {
+      // Horizontal
+      for (let y = 0; y < size; y++) {
+        const row = y * size;
+        let sum = 0;
+        for (let k = -r; k <= r; k++) sum += a[row + ((k % size) + size) % size];
+        for (let x = 0; x < size; x++) {
+          b[row + x] = sum / win;
+          const outIdx = ((x - r) % size + size) % size;
+          const inIdx = ((x + r + 1) % size + size) % size;
+          sum += a[row + inIdx] - a[row + outIdx];
+        }
+      }
+      // Vertical
+      for (let x = 0; x < size; x++) {
+        let sum = 0;
+        for (let k = -r; k <= r; k++) sum += b[(((k % size) + size) % size) * size + x];
+        for (let y = 0; y < size; y++) {
+          a[y * size + x] = sum / win;
+          const outIdx = ((y - r) % size + size) % size;
+          const inIdx = ((y + r + 1) % size + size) % size;
+          sum += b[inIdx * size + x] - b[outIdx * size + x];
+        }
+      }
     }
-    rctx.putImageData(img, 0, 0);
+    return a;
+  }
 
-    const out = document.createElement("canvas");
-    out.width = size; out.height = size;
-    const octx = out.getContext("2d");
-    octx.filter = "blur(" + blurPx + "px) contrast(" + (contrastPct || 140) + "%)";
-    octx.drawImage(raw, 0, 0);
+  function makeNoiseTexture(size, blurPx, contrastPct) {
+    const n = size * size;
+    const buf = new Float32Array(n);
+    for (let i = 0; i < n; i++) buf[i] = Math.random() * 255;
 
-    const tex = new THREE.CanvasTexture(out);
+    const blurred = blurGrayWrapped(buf, size, blurPx);
+
+    // Blurring collapses the range toward mid-grey, so the contrast pass is
+    // what brings the grain back. Pivot on 128 the same way the CSS
+    // contrast() filter did.
+    const c = (contrastPct || 140) / 100;
+    const cv = document.createElement("canvas");
+    cv.width = size; cv.height = size;
+    const ctx = cv.getContext("2d");
+    const img = ctx.createImageData(size, size);
+    for (let i = 0; i < n; i++) {
+      let v = (blurred[i] - 128) * c + 128;
+      v = v < 0 ? 0 : (v > 255 ? 255 : v);
+      const j = i * 4;
+      img.data[j] = v; img.data[j + 1] = v; img.data[j + 2] = v; img.data[j + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+
+    const tex = new THREE.CanvasTexture(cv);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     return tex;
@@ -717,7 +778,7 @@
     const puffs = [];
     const warm = new THREE.Color(0xfff1d6);
     const cool = new THREE.Color(0xb9c6d8);
-    const PUFF_COUNT = reducedMotion ? 60 : 130;
+    const PUFF_COUNT = MOBILE ? 55 : (reducedMotion ? 60 : 130);
     for (let i = 0; i < PUFF_COUNT; i++) {
       const ang = Math.random() * Math.PI * 2;
       const rad = 34 + Math.pow(Math.random(), 0.65) * 165;
@@ -1239,7 +1300,10 @@
     // toward the three monoliths.
     const coreLight = new THREE.PointLight(0xffd2a0, 2.4, 22, 2);
     coreLight.position.y = ringY + 2.4;
-    coreLight.castShadow = true;
+    // A shadow-casting point light renders six cube faces every frame. It
+    // is what makes the clearing read as composed on desktop, and it is the
+    // first thing that has to go on a handset.
+    coreLight.castShadow = !MOBILE;
     coreLight.shadow.mapSize.set(1024, 1024);
     coreLight.shadow.bias = -0.004;
     coreLight.shadow.camera.near = 0.4;
