@@ -48,12 +48,11 @@
   const progressDots = document.querySelectorAll(".progress-dot");
   const progressCount = document.querySelector(".progress-count");
   const toastContainer = document.getElementById("toast-container");
-  const confettiLayer = document.getElementById("confetti-layer");
 
   let benchReady = false;
   let forcedTextMode = false;
 
-  // ---- Exploration game: progress tracking, unlock toasts, confetti -----
+  // ---- Exploration game: progress tracking, unlock toasts, completion ----
   //
   // Deliberately NOT persisted across reloads — each visit starts fresh.
 
@@ -90,20 +89,178 @@
     }, 2600);
   }
 
-  function spawnConfetti() {
-    if (!confettiLayer || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const colors = ["#f2c218", "#ffd84d", "#15171c", "#ffffff"];
-    for (let i = 0; i < 46; i++) {
-      const piece = document.createElement("span");
-      piece.className = "confetti-piece";
-      piece.style.left = Math.random() * 100 + "%";
-      piece.style.backgroundColor = colors[i % colors.length];
-      piece.style.animationDuration = (1.6 + Math.random() * 1.2) + "s";
-      piece.style.animationDelay = (Math.random() * 0.4) + "s";
-      piece.style.transform = "rotate(" + Math.floor(Math.random() * 360) + "deg)";
-      confettiLayer.appendChild(piece);
-      setTimeout(function () { piece.remove(); }, 3400);
+  // ---- Completion sequence -------------------------------------------------
+  // Three beats, fired once all three sections have been opened:
+  //   1. the hub powers up and a shockwave lights each monolith (scene.js)
+  //   2. the drawing annotates itself — dimension callouts pinned to the
+  //      monoliths in screen space, drawn on like the intro's linework
+  //   3. the sheet hands over the contact block
+  //
+  // This replaces the old confetti, which was gold squares falling through a
+  // monochrome drafting site — generic, and belonging to nothing else here.
+
+  const dimensionLayer = document.getElementById("dimension-layer");
+  const completeCard = document.getElementById("complete-card");
+  const completeClose = document.getElementById("complete-close");
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  let dimParts = null;       // built once, then repositioned each frame
+  let dimRaf = 0;
+  let dimVisible = false;
+
+  function svgEl(name, attrs) {
+    const el = document.createElementNS(SVG_NS, name);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  // One callout per monolith: a dot on the subject, a leader elbowing out to
+  // the side, and the label sitting on a short shelf — standard drafting
+  // annotation, which is why it reads as belonging here.
+  function buildDimensions() {
+    if (dimParts) return dimParts;
+    dimensionLayer.innerHTML = "";
+    const callouts = SECTIONS.map(function (id, i) {
+      const g = svgEl("g", { class: "dim-callout", "data-id": id });
+      const dot = svgEl("circle", { class: "dim-dot", r: 3 });
+      const leader = svgEl("path", { class: "dim-line dim-leader" });
+      const shelf = svgEl("path", { class: "dim-line dim-shelf" });
+      const num = svgEl("text", { class: "dim-num" });
+      const label = svgEl("text", { class: "dim-label" });
+      num.textContent = "0" + (i + 1);
+      // The placard engraving, not the achievement phrasing — a callout
+      // labelled "MET JORDAN" reads as a badge, whereas "ABOUT ME" reads as
+      // an annotation on a drawing, which is the whole point of this beat.
+      const node = PORTFOLIO_DATA.nodes.filter(function (n) { return n.id === id; })[0];
+      label.textContent = ((node && node.engraving) || id).toUpperCase();
+      g.appendChild(leader); g.appendChild(shelf);
+      g.appendChild(dot); g.appendChild(num); g.appendChild(label);
+      g.style.animationDelay = (0.12 + i * 0.16) + "s";
+      dimensionLayer.appendChild(g);
+      return { g: g, dot: dot, leader: leader, shelf: shelf, num: num, label: label, id: id };
+    });
+
+    // Overall extent run across the island, with the usual terminator ticks.
+    const extent = svgEl("g", { class: "dim-callout dim-extent" });
+    const run = svgEl("path", { class: "dim-line" });
+    const ticks = svgEl("path", { class: "dim-line" });
+    const extentLabel = svgEl("text", { class: "dim-label dim-extent-label" });
+    extentLabel.textContent = "OVERALL — 3 OF 3 SECTIONS";
+    extent.appendChild(run); extent.appendChild(ticks); extent.appendChild(extentLabel);
+    extent.style.animationDelay = "0.66s";
+    dimensionLayer.appendChild(extent);
+
+    dimParts = { callouts: callouts, extent: { g: extent, run: run, ticks: ticks, label: extentLabel } };
+    return dimParts;
+  }
+
+  function positionDimensions() {
+    if (!dimVisible) return;
+    const anchors = window.getBenchAnchors && window.getBenchAnchors();
+    if (!anchors) return;
+    const parts = dimParts;
+    const w = window.innerWidth;
+
+    parts.callouts.forEach(function (c) {
+      const a = anchors.nodes.filter(function (n) { return n.id === c.id; })[0];
+      if (!a || !a.visible) { c.g.style.opacity = "0"; return; }
+      c.g.style.opacity = "";
+
+      // Elbow away from whichever side of the frame the subject sits on, so
+      // labels never run off screen or collide with the centre of the view.
+      const toLeft = a.x > w * 0.5;
+      const dir = toLeft ? -1 : 1;
+      const elbowX = a.x + dir * 54;
+      const elbowY = a.y - 40;
+      const shelfEnd = elbowX + dir * 92;
+
+      c.dot.setAttribute("cx", a.x);
+      c.dot.setAttribute("cy", a.y);
+      c.leader.setAttribute("d", "M" + a.x + " " + a.y + " L" + elbowX + " " + elbowY);
+      c.shelf.setAttribute("d", "M" + elbowX + " " + elbowY + " L" + shelfEnd + " " + elbowY);
+
+      const textX = toLeft ? shelfEnd + 6 : shelfEnd - 6;
+      const anchor = toLeft ? "start" : "end";
+      c.label.setAttribute("x", textX);
+      c.label.setAttribute("y", elbowY - 7);
+      c.label.setAttribute("text-anchor", anchor);
+      c.num.setAttribute("x", toLeft ? elbowX + 6 : elbowX - 6);
+      c.num.setAttribute("y", elbowY - 7);
+      c.num.setAttribute("text-anchor", toLeft ? "start" : "end");
+    });
+
+    const L = anchors.left, R = anchors.right, ex = parts.extent;
+    if (L && R && L.visible && R.visible) {
+      ex.g.style.opacity = "";
+      const y = Math.max(L.y, R.y) + 46;
+      ex.run.setAttribute("d", "M" + L.x + " " + y + " L" + R.x + " " + y);
+      ex.ticks.setAttribute("d",
+        "M" + L.x + " " + (y - 7) + " v14 M" + R.x + " " + (y - 7) + " v14");
+      ex.label.setAttribute("x", (L.x + R.x) / 2);
+      ex.label.setAttribute("y", y - 10);
+      ex.label.setAttribute("text-anchor", "middle");
+    } else {
+      ex.g.style.opacity = "0";
     }
+  }
+
+  function dimensionFrame() {
+    positionDimensions();
+    if (dimVisible) dimRaf = requestAnimationFrame(dimensionFrame);
+  }
+
+  function showDimensions() {
+    buildDimensions();
+    dimVisible = true;
+    dimensionLayer.classList.add("visible");
+    positionDimensions();
+    cancelAnimationFrame(dimRaf);
+    dimRaf = requestAnimationFrame(dimensionFrame);
+  }
+
+  function hideDimensions() {
+    dimVisible = false;
+    cancelAnimationFrame(dimRaf);
+    dimensionLayer.classList.remove("visible");
+  }
+
+  function showCompleteCard() {
+    // Pull the contact details from the existing modal rather than repeating
+    // them in the markup — one place to edit an email address.
+    const slot = completeCard.querySelector(".cc-slot");
+    if (slot && !slot.childElementCount) {
+      const list = document.querySelector("#contact-modal .contact-list");
+      if (list) slot.appendChild(list.cloneNode(true));
+    }
+    completeCard.hidden = false;
+    // Force a reflow so the transition has a start state to animate from.
+    // requestAnimationFrame would be the usual idiom, but it never fires in
+    // a backgrounded or occluded tab — which would leave the card unhidden
+    // and permanently at opacity 0. This is synchronous either way.
+    void completeCard.offsetWidth;
+    completeCard.classList.add("open");
+  }
+
+  function hideCompleteCard() {
+    completeCard.classList.remove("open");
+    hideDimensions();
+    setTimeout(function () { completeCard.hidden = true; }, 420);
+  }
+
+  if (completeClose) completeClose.addEventListener("click", hideCompleteCard);
+
+  function runCompletionSequence() {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      // No shockwave and no draw-on: the annotated drawing and the contact
+      // block are the payoff, and both are perfectly legible static.
+      showDimensions();
+      showCompleteCard();
+      return;
+    }
+    // Beat 1 fires from updateProgressUI -> setHubProgress in scene.js.
+    setTimeout(showDimensions, 900);
+    setTimeout(showCompleteCard, 2600);
   }
 
   function markExplored(id) {
@@ -112,10 +269,7 @@
     updateProgressUI();
     showToast("Unlocked: " + (ACHIEVEMENT_LABELS[id] || id));
     if (explored.size === SECTIONS.length) {
-      setTimeout(function () {
-        spawnConfetti();
-        showToast("You explored the whole bench — let's talk!", true);
-      }, 500);
+      setTimeout(runCompletionSequence, 400);
     }
   }
 

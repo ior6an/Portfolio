@@ -42,7 +42,8 @@ one section.
 
 There's a small exploration game layered on top: a progress tracker in the
 top-left fills in as you visit each of the three monoliths, a toast pops up the
-first time you unlock one, and finding all three triggers a confetti moment.
+first time you unlock one, and finding all three triggers a three-beat
+completion sequence (below).
 Progress resets on every page load by design — each visit starts fresh at
 0/3.
 
@@ -247,6 +248,37 @@ three tiling cloud planes (scrolled at different rates for parallax) with
 ~130 sprite puffs scattered over them; puffs on the sun's side are tinted
 warm and brightened, which is where most of the backlit look comes from.
 
+## The completion sequence
+
+Fired once all three sections have been opened. Three beats, deliberately
+under four seconds total, because progress resets on every page load and
+this re-fires on each visit:
+
+1. **The machine completes** (`scene.js`). The helix rises out of the gear
+   ring, the travelling pulses surge, and `fireShockwave()` sends a ring of
+   light racing outward across the ground, tripping each monolith's
+   blueprint flash as it passes. It reuses the same wireframe twins the
+   intro and the click X-ray use, so the site keeps one visual vocabulary
+   for revealing a thing.
+2. **The drawing annotates itself** (`ui.js`). Dimension callouts draw on,
+   pinned to the monoliths in screen space via `window.getBenchAnchors()`,
+   which projects the hub, the three nodes and the island extents into CSS
+   pixels. `positionDimensions()` re-runs each frame so the callouts track
+   the orbiting camera. Points behind the camera — and points that project
+   to NaN by landing exactly on the camera plane — are marked not visible
+   and their callouts hidden.
+3. **The sheet hands over contact details** (`ui.js`). `#complete-card` is
+   laid out as a drawing's revision block. Its contact list is *cloned from
+   the existing contact modal* rather than duplicated in the markup, so
+   there is one place to edit an email address.
+
+Under `prefers-reduced-motion` the first beat is skipped entirely and the
+other two appear immediately without draw-on — the annotated drawing and
+the contact block are the actual payload, and both read fine static.
+
+This replaced a confetti burst, which was gold squares falling through an
+otherwise strictly monochrome drafting site.
+
 ## Ambient systems (scene.js)
 
 A few things run continuously in the background, all skipped automatically
@@ -279,8 +311,8 @@ under `prefers-reduced-motion`:
 persisted, so it resets on every reload. `markExplored(id)` is called every
 time a section opens; it's a no-op if that section was already unlocked. The
 `.progress-dot` elements in the title block, the toast pop-ups, and the
-confetti burst on completion are all driven from that one function — see
-`SECTIONS`, `ACHIEVEMENT_LABELS`, `showToast`, and `spawnConfetti` near the
+completion sequence are all driven from that one function — see
+`SECTIONS`, `ACHIEVEMENT_LABELS`, `showToast`, and `runCompletionSequence` near the
 top of `ui.js` if you want to change the copy or add more milestones.
 
 ## Notes
@@ -296,7 +328,7 @@ top of `ui.js` if you want to change the copy or add more milestones.
   loads the PDF the first time someone opens it, not on page load.
 
 - Respects `prefers-reduced-motion` (disables auto-rotate, pulsing markers,
-  hub rotation, the click pop/ping effects, confetti, and the day/night
+  hub rotation, the click pop/ping effects, the completion shockwave, and the day/night
   crossfade — theme switches snap instantly instead; camera moves jump
   instead of easing).
 - Every 3D interaction has a keyboard-reachable equivalent via the nav

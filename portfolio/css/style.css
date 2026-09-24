@@ -1303,7 +1303,7 @@ body.intro-playing #text-toggle {
 }
 
 /* ==========================================================================
-   Exploration game: toasts + confetti
+   Exploration game: toasts + completion sequence
    ========================================================================== */
 
 #toast-container {
@@ -1344,33 +1344,142 @@ body.intro-playing #text-toggle {
   font-weight: 600;
 }
 
-#confetti-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 55;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.confetti-piece {
-  position: absolute;
-  top: -12px;
-  width: 8px;
-  height: 8px;
-  opacity: 0.9;
-  animation-name: confetti-fall;
-  animation-timing-function: ease-in;
-  animation-fill-mode: forwards;
-}
-
-@keyframes confetti-fall {
-  0% { transform: translateY(0) rotate(0deg); opacity: 0.95; }
-  100% { transform: translateY(105vh) rotate(540deg); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .confetti-piece { display: none; }
   .toast { transition: none; }
+}
+
+/* ==========================================================================
+   Completion: drawing annotations + contact block
+   ========================================================================== */
+
+/* The annotation overlay is pinned to projected 3D positions by ui.js, so it
+   tracks the monoliths while the camera keeps orbiting. */
+
+#dimension-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 18;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+#dimension-layer.visible { opacity: 1; }
+
+.dim-line {
+  fill: none;
+  stroke: var(--hud-ink);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.55;
+}
+
+.dim-dot {
+  fill: none;
+  stroke: var(--hud-ink);
+  stroke-width: 1.4;
+  opacity: 0.85;
+}
+
+.dim-num,
+.dim-label {
+  font-family: var(--font-mono);
+  fill: var(--hud-ink);
+  paint-order: stroke;
+  /* A halo in the page background keeps the type legible wherever it lands
+     on the scene, without drawing a plate behind it. */
+  stroke: var(--bg);
+  stroke-width: 3.5;
+  stroke-linejoin: round;
+}
+
+.dim-num { font-size: 9px; letter-spacing: 0.1em; opacity: 0.5; }
+.dim-label { font-size: 10.5px; letter-spacing: 0.16em; }
+.dim-extent-label { font-size: 9.5px; letter-spacing: 0.2em; opacity: 0.6; }
+
+body.night .dim-num,
+body.night .dim-label { stroke: rgba(10, 14, 24, 0.92); }
+
+/* Each callout draws itself on, same gesture as the intro sheet. */
+.dim-callout {
+  opacity: 0;
+  animation: dim-draw 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+
+@keyframes dim-draw {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dim-callout { animation: none; opacity: 1; }
+  #dimension-layer { transition: none; }
+}
+
+/* --- The contact block ---------------------------------------------------
+   Laid out as a drawing's revision block rather than a dialog: a heavy rule
+   at the top, mono field labels, and no rounded anything. */
+
+#complete-card {
+  position: fixed;
+  right: var(--hud-pad);
+  bottom: 64px;
+  z-index: 60;
+  width: min(380px, calc(100vw - 2 * var(--hud-pad)));
+  padding: 24px 26px 22px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-top: 2px solid var(--ink);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 18px 48px rgba(21, 23, 28, 0.16);
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.42s ease, transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+#complete-card.open { opacity: 1; transform: translateY(0); }
+
+#complete-card h2 {
+  margin: 8px 0 10px;
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.cc-rev { margin: 0; }
+
+.cc-note {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.cc-slot .contact-list { margin: 0; }
+
+#complete-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  border: 0;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--ink-muted);
+  padding: 4px;
+}
+
+#complete-close:hover { color: var(--ink); }
+
+@media (max-width: 720px) {
+  #complete-card { left: var(--hud-pad); right: var(--hud-pad); bottom: 56px; width: auto; }
+  .dim-extent { display: none; }
 }
 
 /* ==========================================================================

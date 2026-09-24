@@ -167,7 +167,19 @@
   <section id="text-fallback" hidden aria-label="Portfolio contents as text"></section>
 
   <div id="toast-container" aria-live="polite"></div>
-  <div id="confetti-layer" aria-hidden="true"></div>
+
+  <!-- Completion sequence: the drawing annotates itself once all three
+       sections have been opened, then hands over the contact block. -->
+  <svg id="dimension-layer" aria-hidden="true"></svg>
+
+  <aside id="complete-card" role="dialog" aria-label="You explored everything" hidden>
+    <button type="button" id="complete-close" aria-label="Close">&times;</button>
+    <p class="tb-field cc-rev">REV B &nbsp;·&nbsp; SHEET 1 OF 1 &nbsp;·&nbsp; STATUS: COMPLETE</p>
+    <h2>Drawing complete</h2>
+    <p class="cc-note">You've read the whole sheet — all three sections. That's the
+      whole bench. If any of it was worth your time, the fastest way to reach me:</p>
+    <div class="cc-slot"></div>
+  </aside>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>

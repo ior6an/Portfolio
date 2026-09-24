@@ -31,6 +31,7 @@
   let ambientLight, keyLight, rimLight, rimLight2, hemiLight;
   let composer, bloomPass;
   let cloudDeck, sunDisc, godRays;
+  let HELIX_REST_Y = 0;
 
   // Blueprint-to-real intro. `blueprint` is the master dial: 1.0 is a blank
   // CAD sheet with only wireframe linework on it, 0.0 is the finished
@@ -1292,6 +1293,7 @@
     }
 
     helixGroup.position.y = ringY + HELIX_HEIGHT / 2 + 0.15;
+    HELIX_REST_Y = helixGroup.position.y;
     group.add(helixGroup);
 
     // --- The hub as a light source ---------------------------------------
@@ -1341,10 +1343,72 @@
   // whole assembly up as the visitor gets closer to 3/3. Called from ui.js.
   let hubProgress = 0;
   let hubCelebrateUntil = 0;
+  let hubLift = 0;          // helix rise during the completion beat
+  let shockwave = null;     // { mesh, mat, start, hit: Set-like }
+
   window.setHubProgress = function (count, total) {
     hubProgress = total ? count / total : 0;
-    if (count >= total && total > 0) hubCelebrateUntil = performance.now() + 4000;
+    if (count >= total && total > 0) {
+      hubCelebrateUntil = performance.now() + 4000;
+      fireShockwave();
+    }
   };
+
+  // The completion beat: a ring of light races outward across the ground
+  // from the hub and sets off each monolith's blueprint flash as it reaches
+  // it. Reuses the same wireframe twins the intro and the click X-ray use,
+  // so the whole site keeps one visual vocabulary for "revealing" a thing.
+  const SHOCKWAVE_MS = 1500;
+  const SHOCKWAVE_MAX_R = 34;
+
+  function fireShockwave() {
+    if (reducedMotion || !scene) return;
+    if (shockwave) { scene.remove(shockwave.mesh); shockwave = null; }
+
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffd9a0, transparent: true, opacity: 0.85,
+      side: THREE.DoubleSide, depthWrite: false, fog: false,
+      blending: THREE.AdditiveBlending
+    });
+    // Unit-radius ring, scaled outward each frame — one geometry, no
+    // per-frame rebuilds.
+    const mesh = new THREE.Mesh(new THREE.RingGeometry(0.92, 1.0, 96), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = terrainHeight(0, 0) + 0.10;
+    mesh.renderOrder = 2;
+    scene.add(mesh);
+
+    shockwave = { mesh: mesh, mat: mat, start: performance.now(), hit: {} };
+  }
+
+  function updateShockwave() {
+    if (!shockwave) return;
+    const t = (performance.now() - shockwave.start) / SHOCKWAVE_MS;
+    if (t >= 1) {
+      scene.remove(shockwave.mesh);
+      shockwave.mesh.geometry.dispose();
+      shockwave.mat.dispose();
+      shockwave = null;
+      return;
+    }
+    // Fast out of the gate, easing as it expands — reads as energy losing
+    // momentum rather than a linear wipe.
+    const eased = 1 - Math.pow(1 - t, 2.2);
+    const radius = eased * SHOCKWAVE_MAX_R;
+    shockwave.mesh.scale.setScalar(Math.max(0.001, radius));
+    shockwave.mat.opacity = 0.85 * Math.pow(1 - t, 1.5);
+
+    // Trip each monolith's flash as the front sweeps past it.
+    PORTFOLIO_DATA.nodes.forEach(function (node) {
+      if (shockwave.hit[node.id]) return;
+      const d = Math.hypot(node._x, node._z);
+      if (radius >= d) {
+        shockwave.hit[node.id] = true;
+        if (node.wireMat) node.wireMat.userData.flashStart = performance.now();
+        if (node.group) node.group.userData.popStart = performance.now();
+      }
+    });
+  }
 
   // Drives everything time-based about the hub. Split out of animate() only
   // because the render loop was getting hard to read.
@@ -1394,6 +1458,16 @@
         mat.emissiveIntensity += (target - mat.emissiveIntensity) * 0.06;
       });
     }
+
+    // The helix rises out of the gear ring as the machine completes, then
+    // settles back. Driven off the same celebrate window as everything else.
+    if (ud.helix) {
+      const liftTarget = celebrating ? 0.55 : 0;
+      hubLift += (liftTarget - hubLift) * (reducedMotion ? 1 : 0.055);
+      ud.helix.position.y = HELIX_REST_Y + hubLift;
+    }
+
+    updateShockwave();
 
     if (ud.coreLight) {
       const flicker = reducedMotion ? 1 :
@@ -2554,6 +2628,58 @@
     camera.position.copy(defaultCamPos);
     controls.target.copy(defaultLookAt);
     document.dispatchEvent(new CustomEvent("bench-intro-done"));
+  };
+
+  // ---------------------------------------------------------------------
+  // Screen-space anchors for the 2D annotation overlay
+  // ---------------------------------------------------------------------
+  // Projects the hub and each monolith into CSS pixel coordinates so the
+  // dimension callouts in ui.js can be pinned to them while the camera
+  // moves. `visible` is false when a point is behind the camera, which
+  // projection alone will not tell you — the perspective divide happily
+  // returns an on-screen position for points behind the lens.
+
+  const projVec = new THREE.Vector3();
+
+  window.getBenchAnchors = function () {
+    if (!camera || !renderer) return null;
+    const w = window.innerWidth, h = window.innerHeight;
+    const out = { nodes: [] };
+
+    // The camera matrix is normally current because the render loop just ran,
+    // but this can also be called while the loop is paused (a background tab,
+    // an occluded window), where a stale matrix yields garbage.
+    camera.updateMatrixWorld();
+
+    function project(x, y, z) {
+      projVec.set(x, y, z);
+      const distance = projVec.distanceTo(camera.position);
+      projVec.project(camera);
+      const sx = (projVec.x * 0.5 + 0.5) * w;
+      const sy = (-projVec.y * 0.5 + 0.5) * h;
+      return {
+        x: sx,
+        y: sy,
+        distance: distance,
+        // z outside [-1, 1] means outside the frustum; behind the camera
+        // comes back as z > 1. A point landing exactly on the camera plane
+        // divides by zero and yields NaN, which would otherwise pin a
+        // callout to a garbage coordinate — so require finite values too.
+        visible: isFinite(sx) && isFinite(sy) && projVec.z > -1 && projVec.z < 1
+      };
+    }
+
+    PORTFOLIO_DATA.nodes.forEach(function (node) {
+      const p = project(node._x, terrainHeight(node._x, node._z) + node.markerBaseY, node._z);
+      p.id = node.id;
+      out.nodes.push(p);
+    });
+
+    out.hub = project(0, terrainHeight(0, 0) + 3.4, 0);
+    // Island extents, used for the overall dimension run.
+    out.left = project(-ISLAND_RIM, terrainHeight(0, 0), 0);
+    out.right = project(ISLAND_RIM, terrainHeight(0, 0), 0);
+    return out;
   };
 
   // ---------------------------------------------------------------------
