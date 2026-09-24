@@ -18,6 +18,53 @@
   --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
 
   --hud-pad: 28px;
+
+  /* HUD palette. The chrome sits directly on the 3D scene with no panel
+     behind it, so these have to invert when night mode crossfades the
+     world — otherwise it's dark ink on a dark sky. Transitioned at roughly
+     the same pace as the scene's own day/night blend. */
+  --hud-ink: #15171c;
+  --hud-ink-muted: #6b6f76;
+  --hud-ink-faint: rgba(21, 23, 28, 0.42);
+  --hud-line: rgba(21, 23, 28, 0.22);
+  --hud-line-soft: rgba(21, 23, 28, 0.16);
+  --hud-num: rgba(21, 23, 28, 0.30);
+  --hud-dot-line: rgba(21, 23, 28, 0.35);
+  --hud-halo: 0 1px 10px rgba(255, 255, 255, 0.85);
+  --hud-crescent: rgba(255, 255, 255, 0.92);
+}
+
+body.night {
+  --hud-ink: #eef2f6;
+  --hud-ink-muted: rgba(238, 242, 246, 0.66);
+  --hud-ink-faint: rgba(238, 242, 246, 0.40);
+  --hud-line: rgba(238, 242, 246, 0.30);
+  --hud-line-soft: rgba(238, 242, 246, 0.18);
+  --hud-num: rgba(238, 242, 246, 0.38);
+  --hud-dot-line: rgba(238, 242, 246, 0.45);
+  --hud-halo: 0 1px 12px rgba(8, 12, 22, 0.9);
+  --hud-crescent: rgba(12, 16, 26, 0.95);
+}
+
+/* One rule so every piece of chrome crossfades together rather than each
+   element easing on its own schedule. 0.35s is a compromise: these same
+   colour properties also carry the hover states, so a slow theme crossfade
+   would make every hover feel laggy. */
+#hud-top, #hud-top *,
+#legend, #text-toggle {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-duration: 0.35s;
+  transition-timing-function: ease;
+}
+
+/* Spacing shifts are the hover gesture and stay on their own faster curve. */
+#hud-nav button,
+#text-toggle,
+.btn-primary,
+.btn-ghost {
+  transition: letter-spacing 0.28s cubic-bezier(0.22, 0.61, 0.36, 1),
+              color 0.35s ease,
+              border-color 0.35s ease;
 }
 
 @media (max-width: 720px) {
@@ -115,85 +162,250 @@ a { color: var(--accent-ink); }
   position: fixed;
   inset: 0;
   z-index: 90;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background:
-    radial-gradient(circle at 50% 30%, rgba(120, 125, 133, 0.10), transparent 60%),
-    var(--bg);
-  transition: opacity 0.5s ease, visibility 0.5s ease;
+  /* The paper itself comes from the 3D scene's fog, which is driven white
+     during the intro — so this layer carries only linework and type, and
+     the handover to the rendered view has no seam in it. */
+  background: transparent;
+  pointer-events: none;
+  transition: opacity 0.9s ease, visibility 0.9s ease;
 }
 
 #intro-screen.hidden {
   opacity: 0;
   visibility: hidden;
+}
+
+/* --- Drawing frame ------------------------------------------------------ */
+
+.sheet-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.sheet-lines .ln {
+  fill: none;
+  stroke: rgba(30, 34, 40, 0.5);
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
+  /* Each path is drawn on by running its dash gap off the end. The length
+     is deliberately over-estimated so one rule covers every path here. */
+  stroke-dasharray: 4000;
+  stroke-dashoffset: 4000;
+  animation: sheet-draw 1.1s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+
+.sheet-lines .d1 { animation-delay: 0.05s; }
+.sheet-lines .d2 { animation-delay: 0.28s; stroke-opacity: 0.75; }
+.sheet-lines .d3 { animation-delay: 0.52s; stroke-opacity: 0.6; }
+.sheet-lines .d4 { animation-delay: 0.74s; stroke-opacity: 0.45; stroke-dasharray: 4000; }
+
+@keyframes sheet-draw { to { stroke-dashoffset: 0; } }
+
+/* --- Title block -------------------------------------------------------- */
+
+.sheet-titleblock {
+  position: absolute;
+  left: clamp(48px, 6vw, 120px);
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 460px;
+}
+
+.sheet-titleblock > * {
+  opacity: 0;
+  animation: sheet-type 0.7s ease forwards;
+}
+
+.sheet-rev { animation-delay: 0.62s; }
+.sheet-titleblock h1 { animation-delay: 0.80s; }
+.sheet-titleblock .intro-sub { animation-delay: 0.96s; }
+.sheet-titleblock .intro-help { animation-delay: 1.12s; }
+
+@keyframes sheet-type {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sheet-titleblock h1 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: clamp(34px, 5.4vw, 58px);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  color: #15171c;
+}
+
+.sheet-titleblock .intro-sub {
+  margin: 0 0 14px;
+  font-size: clamp(15px, 1.6vw, 19px);
+  line-height: 1.45;
+  color: #3a3f47;
+}
+
+.sheet-titleblock .intro-help {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: rgba(30, 34, 40, 0.55);
+}
+
+/* --- Render progress readout ------------------------------------------- */
+
+.sheet-status {
+  position: absolute;
+  right: clamp(48px, 5vw, 96px);
+  bottom: clamp(72px, 9vh, 128px);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: rgba(30, 34, 40, 0.55);
+  opacity: 0;
+  animation: sheet-type 0.6s ease 1.25s forwards;
+}
+
+.sheet-status-bar {
+  display: block;
+  width: 132px;
+  height: 2px;
+  background: rgba(30, 34, 40, 0.16);
+  overflow: hidden;
+}
+
+.sheet-status-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #15171c;
+  /* Matches the 3D side's render phase — starts when the sheet stops
+     drawing and finishes as the scene finishes materialising. */
+  animation: sheet-fill 2.4s linear 1.5s forwards;
+}
+
+@keyframes sheet-fill { to { width: 100%; } }
+
+/* --- Controls ----------------------------------------------------------- */
+
+/* HUD chrome stands down for the duration of the sheet. */
+body.intro-playing #hud-top,
+body.intro-playing #legend,
+body.intro-playing #text-toggle {
+  opacity: 0;
   pointer-events: none;
 }
 
-.intro-panel {
-  max-width: 480px;
-  padding: 36px;
-  border: 1px solid var(--panel-border);
-  background: var(--panel-bg);
+#hud-top,
+#legend,
+#text-toggle {
+  transition: opacity 0.8s ease 0.15s;
 }
 
-.intro-panel h1 {
-  margin: 0 0 10px;
-  font-family: var(--font-display);
-  font-size: clamp(28px, 5vw, 40px);
-  font-weight: 400;
-  letter-spacing: -0.01em;
-}
-
-.intro-sub {
-  margin: 0 0 18px;
-  color: var(--ink);
-  font-size: 16px;
-  line-height: 1.5;
-}
-
-.intro-help {
-  margin: 0 0 26px;
-  color: var(--ink-muted);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.intro-actions {
+#intro-screen .intro-actions {
+  position: absolute;
+  left: clamp(48px, 6vw, 120px);
+  bottom: clamp(48px, 7vh, 96px);
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  pointer-events: auto;
+  opacity: 0;
+  animation: sheet-type 0.6s ease 1.4s forwards;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-lines .ln,
+  .sheet-titleblock > *,
+  .sheet-status,
+  #intro-screen .intro-actions,
+  .sheet-status-bar i {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  .sheet-status-bar i { width: 100%; }
+}
+
+@media (max-width: 720px) {
+  .sheet-titleblock {
+    left: 28px;
+    right: 28px;
+    top: 42%;
+    max-width: none;
+  }
+  .sheet-status { display: none; }
+  #intro-screen .intro-actions { left: 28px; right: 28px; bottom: 32px; }
+}
+
+/* Buttons follow the same rule as the nav: no filled rectangles. Weight is
+   carried by the rule underneath and by letter-spacing opening up on hover,
+   which reads as a drawn line rather than a hover state. */
 
 .btn-primary,
 .btn-ghost {
+  position: relative;
   font-family: var(--font-mono);
-  font-size: 13px;
-  letter-spacing: 0.02em;
-  padding: 12px 20px;
-  border: 1px solid var(--cyan);
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 10px 2px;
+  border: 0;
   background: transparent;
-  color: var(--ink);
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.btn-primary {
-  background: var(--cyan);
-  color: #15171c;
-  font-weight: 600;
-}
-
-.btn-primary:hover { background: #c9cdd2; }
-
-.btn-ghost {
-  border-color: var(--panel-border);
   color: var(--ink-muted);
+  transition: color 0.22s ease, letter-spacing 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.btn-ghost:hover {
-  border-color: var(--ink-muted);
+.btn-primary::after,
+.btn-ghost::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.3;
+  transform-origin: left center;
+  transition: opacity 0.22s ease, height 0.22s ease;
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible,
+.btn-ghost:hover,
+.btn-ghost:focus-visible {
   color: var(--ink);
+  letter-spacing: 0.24em;
+}
+
+.btn-primary:hover::after,
+.btn-primary:focus-visible::after,
+.btn-ghost:hover::after,
+.btn-ghost:focus-visible::after {
+  opacity: 1;
+}
+
+/* The primary action gets a heavier rule and a leading tick, the way a
+   drawing calls out its principal dimension. */
+.btn-primary {
+  color: var(--ink);
+  padding-left: 16px;
+}
+
+.btn-primary::after { height: 2px; opacity: 0.85; }
+
+.btn-primary::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 11px;
+  background: currentColor;
 }
 
 /* ==========================================================================
@@ -239,98 +451,237 @@ a { color: var(--accent-ink); }
   pointer-events: none;
 }
 
+/* --------------------------------------------------------------------------
+   Title block — a drafting title block, not a card. No box, no backdrop
+   blur: a single heavy rule above the name does the work of separating it
+   from the scene, and the type hierarchy does the rest.
+   -------------------------------------------------------------------------- */
+
 .title-block {
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 10px 14px;
-  border: 1px solid var(--panel-border);
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(6px);
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hud-ink);
+  /* Keeps the type legible over sky at either end of the day/night blend. */
+  text-shadow: var(--hud-halo);
+}
+
+.tb-rule {
+  display: block;
+  width: 44px;
+  height: 2px;
+  background: var(--hud-ink);
+  margin-bottom: 9px;
 }
 
 .tb-name {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 400;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.14em;
+  line-height: 1;
 }
 
 .tb-sub {
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  color: var(--ink-muted);
+  font-size: 9.5px;
+  letter-spacing: 0.17em;
+  color: var(--hud-ink-muted);
+  margin-top: 3px;
 }
+
+/* Progress reads as a drafting revision strip: filled squares, not dots,
+   sitting on a hairline that runs the width of the block. */
 
 .tb-progress {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 5px;
+  margin-top: 11px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hud-line-soft);
 }
 
 .progress-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--panel-border);
-  transition: background-color 0.3s ease, transform 0.3s ease;
+  width: 7px;
+  height: 7px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--hud-dot-line);
+  transition: background-color 0.45s ease, box-shadow 0.45s ease, transform 0.45s cubic-bezier(0.22, 1.2, 0.36, 1);
 }
 
 .progress-dot.filled {
-  background: var(--cyan);
-  transform: scale(1.2);
+  background: var(--hud-ink);
+  box-shadow: inset 0 0 0 1px var(--hud-ink);
+  transform: rotate(45deg);
 }
 
 .progress-count {
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.03em;
-  color: var(--ink-muted);
-  margin-left: 2px;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--hud-ink-muted);
+  margin-left: 6px;
 }
+
+/* --------------------------------------------------------------------------
+   Nav — a drawing index. Right-aligned numbered rows on a shared hairline,
+   with a leader tick that draws out from the edge on hover. The old version
+   was six identical bordered rectangles, which is what made it read as
+   default UI rather than as part of the drawing.
+   -------------------------------------------------------------------------- */
 
 #hud-nav {
   pointer-events: auto;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-width: 232px;
   max-width: 62vw;
+  border-right: 1px solid var(--hud-line);
+  padding-right: 14px;
+}
+
+.nav-heading {
+  margin: 0 0 7px;
+  padding-bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-align: right;
+  color: var(--hud-ink-faint);
+  border-bottom: 1px solid var(--hud-line-soft);
 }
 
 #hud-nav button {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: none;
   font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  color: var(--ink-muted);
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid transparent;
-  padding: 7px 10px;
-  white-space: nowrap;
-  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--hud-ink-muted);
+  text-align: right;
+  text-shadow: var(--hud-halo);
 }
 
-#hud-nav button:hover { color: var(--ink); }
+.nav-num {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--hud-num);
+  min-width: 14px;
+  text-align: left;
+}
+
+.nav-label { white-space: nowrap; }
+
+/* The leader tick: a hairline that draws outward past the index rule,
+   the same gesture the intro sheet uses for its dimension lines. */
+#hud-nav button::after {
+  content: "";
+  position: absolute;
+  right: -14px;
+  top: 50%;
+  width: 0;
+  height: 1px;
+  background: var(--hud-ink);
+  transition: width 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+#hud-nav button:hover,
+#hud-nav button:focus-visible {
+  color: var(--hud-ink);
+  letter-spacing: 0.12em;
+}
+
+#hud-nav button:hover .nav-num,
+#hud-nav button:focus-visible .nav-num {
+  color: var(--hud-ink);
+}
+
+#hud-nav button:hover::after,
+#hud-nav button:focus-visible::after {
+  width: 14px;
+}
 
 #hud-nav button.active {
-  color: var(--accent-ink);
-  background: var(--cyan);
-  border-color: var(--cyan);
+  color: var(--hud-ink);
+  background: none;
+  letter-spacing: 0.12em;
 }
 
-#theme-toggle[aria-pressed="true"] {
-  color: #f3f0e6;
-  background: #21242c;
-  border-color: #21242c;
+#hud-nav button.active .nav-num { color: var(--hud-ink); }
+
+#hud-nav button.active::after {
+  width: 14px;
+  height: 2px;
+}
+
+.nav-sep {
+  display: block;
+  height: 1px;
+  background: var(--hud-line-soft);
+  margin: 7px 0;
+}
+
+/* Night toggle carries a small sun/moon mark in its number slot — it is the
+   one control that changes the world rather than navigating it, so it reads
+   differently on purpose. */
+.sun-mark {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--hud-dot-line);
+  background: transparent;
+}
+
+#theme-toggle[aria-pressed="true"] { color: var(--hud-ink); }
+
+#theme-toggle[aria-pressed="true"] .sun-mark {
+  background: var(--hud-ink);
+  border-color: var(--hud-ink);
+  /* Crescent, cut by an offset bite in the background colour. */
+  box-shadow: inset -3px 0 0 0 var(--hud-crescent);
 }
 
 @media (max-width: 900px) {
-  #hud-nav { max-width: 100%; justify-content: flex-start; }
   #hud-top { flex-direction: column; }
+  #hud-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+    border-right: 0;
+    border-top: 1px solid var(--hud-line-soft);
+    padding-right: 0;
+    padding-top: 8px;
+    gap: 14px;
+  }
+  .nav-heading { display: none; }
+  #hud-nav button { width: auto; padding: 4px 0; }
+  #hud-nav button::after { right: 0; left: 0; top: auto; bottom: 0; width: 0; }
+  #hud-nav button:hover::after,
+  #hud-nav button.active::after { width: 100%; }
+  .nav-sep { display: none; }
 }
+
+/* --------------------------------------------------------------------------
+   Corner controls
+   -------------------------------------------------------------------------- */
 
 #text-toggle {
   position: fixed;
@@ -338,15 +689,25 @@ a { color: var(--accent-ink); }
   right: var(--hud-pad);
   z-index: 25;
   font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  color: var(--ink);
-  background: var(--cyan);
-  border: 1px solid var(--cyan);
-  padding: 8px 12px;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hud-ink-muted);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--hud-line);
+  text-shadow: var(--hud-halo);
+  padding: 5px 2px;
+  transition: color 0.22s ease, letter-spacing 0.28s ease, border-color 0.22s ease;
 }
 
-#text-toggle:hover { background: #c9cdd2; }
+#text-toggle:hover,
+#text-toggle:focus-visible {
+  background: none;
+  color: var(--hud-ink);
+  letter-spacing: 0.2em;
+  border-bottom-color: var(--hud-ink);
+}
 
 #legend {
   position: fixed;
@@ -356,13 +717,15 @@ a { color: var(--accent-ink); }
   z-index: 15;
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--ink-muted);
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid var(--panel-border);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hud-ink-faint);
+  background: none;
+  border: 0;
   padding: 6px 12px;
   pointer-events: none;
+  text-shadow: var(--hud-halo);
 }
 
 @media (max-width: 600px) {

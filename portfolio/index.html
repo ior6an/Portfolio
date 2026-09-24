@@ -20,17 +20,42 @@
     </div>
   </div>
 
-  <!-- Intro / entry screen -->
+  <!-- Intro: a CAD sheet that draws itself over the scene, then dissolves as
+       the 3D view "renders in" underneath it. The linework is inert — only
+       the two controls take pointer events. -->
   <div id="intro-screen" role="dialog" aria-label="Welcome">
-    <div class="intro-panel">
-      <p class="tb-field">SHEET 1 OF 1 &nbsp;·&nbsp; SCALE: NTS &nbsp;·&nbsp; REV A</p>
+    <svg class="sheet-lines" viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true">
+      <!-- drawing frame -->
+      <rect class="ln d1" x="26" y="26" width="1548" height="848" />
+      <rect class="ln d2" x="38" y="38" width="1524" height="824" />
+      <!-- centre marks on each edge -->
+      <path class="ln d2" d="M800 26 v34 M800 874 v-34 M26 450 h34 M1574 450 h-34" />
+      <!-- corner registration ticks -->
+      <path class="ln d3" d="M38 120 h56 M38 782 h56 M1562 120 h-56 M1562 782 h-56" />
+      <!-- dimension run along the bottom, with arrow ticks -->
+      <path class="ln d3" d="M300 812 h1000" />
+      <path class="ln d3" d="M300 800 v24 M800 800 v24 M1300 800 v24" />
+      <!-- extension line up to the subject -->
+      <path class="ln d4" d="M800 812 v-96" />
+      <!-- section marker around the centre of the sheet -->
+      <path class="ln d4" d="M660 470 h-52 v-52 M940 470 h52 v-52 M660 380 h-52 v52 M940 380 h52 v52" />
+    </svg>
+
+    <div class="sheet-titleblock">
+      <p class="tb-field sheet-rev">SHEET 1 OF 1 &nbsp;·&nbsp; SCALE: NTS &nbsp;·&nbsp; REV A</p>
       <h1>Jordan Banh</h1>
-      <p class="intro-sub">Biomedical &amp; Mechanical Engineering — an interactive bench of what I've been building.</p>
-      <p class="intro-help">Drag to orbit the landscape. Click a stone to explore — there are three to find. Everything here also works as plain text.</p>
-      <div class="intro-actions">
-        <button id="enter-btn" class="btn-primary">Enter the bench</button>
-        <button id="enter-text-btn" class="btn-ghost">Skip to text version</button>
-      </div>
+      <p class="intro-sub">Biomedical &amp; Mechanical Engineering</p>
+      <p class="intro-help">Drag to orbit &nbsp;·&nbsp; click a stone to explore &nbsp;·&nbsp; three to find</p>
+    </div>
+
+    <p class="sheet-status" aria-live="polite">
+      <span class="sheet-status-label">GENERATING VIEW</span>
+      <span class="sheet-status-bar"><i></i></span>
+    </p>
+
+    <div class="intro-actions">
+      <button id="enter-btn" class="btn-ghost">Skip intro</button>
+      <button id="enter-text-btn" class="btn-ghost">Skip to text version</button>
     </div>
   </div>
 
@@ -41,9 +66,12 @@
 
   <div id="vignette" aria-hidden="true"></div>
 
-  <!-- HUD -->
+  <!-- HUD. Laid out as a drawing sheet's title block and drawing index
+       rather than a toolbar, so the chrome speaks the same language as the
+       blueprint intro instead of sitting on top of it as generic UI. -->
   <header id="hud-top">
     <div class="title-block">
+      <span class="tb-rule" aria-hidden="true"></span>
       <span class="tb-name">JORDAN BANH</span>
       <span class="tb-sub">BIOMEDICAL &amp; MECHANICAL ENGINEERING</span>
       <div class="tb-progress" aria-label="Sections explored">
@@ -54,12 +82,26 @@
       </div>
     </div>
     <nav id="hud-nav" aria-label="Sections">
-      <button type="button" data-node="about" title="Bio, background, and what drives me">About</button>
-      <button type="button" data-node="work-experience" title="My CertainTeed co-op role and what I did there">Work Experience</button>
-      <button type="button" data-node="projects" title="Chopper frame, burner bushing wall, Hed-1">Projects</button>
-      <button type="button" id="contact-btn" title="Email, LinkedIn, phone">Contact</button>
-      <button type="button" id="resume-btn" title="Preview or download my résumé">Resume</button>
-      <button type="button" id="theme-toggle" aria-pressed="false" title="Switch between day and night">Night Mode</button>
+      <p class="nav-heading" aria-hidden="true">INDEX</p>
+      <button type="button" data-node="about" title="Bio, background, and what drives me">
+        <span class="nav-num">01</span><span class="nav-label">About</span>
+      </button>
+      <button type="button" data-node="work-experience" title="My CertainTeed co-op role and what I did there">
+        <span class="nav-num">02</span><span class="nav-label">Work Experience</span>
+      </button>
+      <button type="button" data-node="projects" title="Chopper frame, burner bushing wall, Hed-1">
+        <span class="nav-num">03</span><span class="nav-label">Projects</span>
+      </button>
+      <span class="nav-sep" aria-hidden="true"></span>
+      <button type="button" id="contact-btn" title="Email, LinkedIn, phone">
+        <span class="nav-num">&#183;</span><span class="nav-label">Contact</span>
+      </button>
+      <button type="button" id="resume-btn" title="Preview or download my résumé">
+        <span class="nav-num">&#183;</span><span class="nav-label">Resume</span>
+      </button>
+      <button type="button" id="theme-toggle" aria-pressed="false" title="Switch between day and night">
+        <span class="nav-num" aria-hidden="true"><i class="sun-mark"></i></span><span class="nav-label">Night Mode</span>
+      </button>
     </nav>
   </header>
 
@@ -103,13 +145,13 @@
       <div class="resume-card-header">
         <p class="tb-field">RESUME</p>
         <div class="resume-card-actions">
-          <a id="resume-download" class="btn-primary" href="resume/Jordan-Banh-Resume.pdf" download="Jordan-Banh-Resume.pdf">Download PDF</a>
+          <a id="resume-download" class="btn-primary" href="resume/Resume_Jordan_Banh_Mechanical_Design_Engineering_2026-09.pdf" download="Resume_Jordan_Banh_Mechanical_Design_Engineering_2026-09.pdf">Download PDF</a>
           <button type="button" id="resume-close" aria-label="Close résumé">&times;</button>
         </div>
       </div>
       <iframe id="resume-frame" src="" title="Jordan Banh's résumé — scrollable preview"></iframe>
       <p class="resume-fallback">
-        Preview not loading? <a href="resume/Jordan-Banh-Resume.pdf" target="_blank" rel="noopener">open the PDF directly</a>.
+        Preview not loading? <a href="resume/Resume_Jordan_Banh_Mechanical_Design_Engineering_2026-09.pdf" target="_blank" rel="noopener">open the PDF directly</a>.
       </p>
     </div>
   </div>
@@ -130,6 +172,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+  <!-- Post-processing: filmic bloom over the rendered frame. Order matters —
+       EffectComposer needs the two shaders and Pass before it loads. -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
   <script src="js/data.js"></script>
   <script src="js/model-data.js"></script>
   <script src="js/scene.js"></script>

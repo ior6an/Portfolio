@@ -17,7 +17,7 @@ const PORTFOLIO_DATA = {
     {
       id: "about",
       engraving: "ABOUT ME",
-      markerType: "helix",
+      markerType: "face",
       color: 0x33d9c7,
       kicker: "ABOUT",
       title: "Jordan Banh",
@@ -44,7 +44,7 @@ const PORTFOLIO_DATA = {
     {
       id: "work-experience",
       engraving: "WORK EXP",
-      markerType: "gear",
+      markerType: "heart",
       color: 0xe8862b,
       kicker: "WORK EXPERIENCE",
       title: "Maintenance Engineering Co-op",
@@ -86,7 +86,7 @@ const PORTFOLIO_DATA = {
     {
       id: "projects",
       engraving: "PROJECTS",
-      markerType: "tool",
+      markerType: "hand",
       color: 0x9b6bd1,
       kicker: "PROJECTS",
       title: "Mechanical Design &amp; Fabrication",

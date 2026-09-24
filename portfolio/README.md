@@ -4,13 +4,14 @@ A single-page, self-contained 3D portfolio. No build step — it's plain HTML/CS
 
 ## What it is
 
-A grassy, tree-scattered landscape (rolling hills, colored by elevation,
-under an open sky) with three stone monoliths planted close together around
-a central DNA-and-gear sculpture: **About Me**, **Work Experience**, and
-**Projects**. Each monolith has its own small topper so they read
-differently at a glance — a DNA helix for About, a gear for Work
-Experience, a hex nut for Projects — plus a standalone sign on a post beside
-it (angled like exhibit/museum signage). The hub sculpture itself is purely
+A grassy, tree-scattered island floating above a sea of clouds, backlit by
+a low sun. Three stone monoliths stand close together around a central
+DNA-and-gear sculpture: **About Me**, **Work Experience**, and
+**Projects**. Each monolith is crowned by its own sculpture so they read
+differently at a glance — a face in glass for About, an anatomical heart
+for Work Experience, a robotic hand holding a flower for Projects — plus a
+standalone sign on a post beside it (angled like exhibit/museum signage).
+All three sculptures are generated in code, not loaded as model files. The hub sculpture itself is purely
 atmospheric, not clickable. Click any monolith (or the matching nav button,
 or Tab + Enter) to fly the camera over and open a detail panel with the real
 content, an animated count-up of a few real numbers, and a brief wireframe
@@ -21,10 +22,13 @@ a couple of seconds — sky, lighting, and fog all shift together, and at
 night each monolith's base glow and its sign's lettering both light up
 brighter so everything stays readable in the dark. A few other ambient
 touches run underneath: a warm light follows the cursor across the terrain,
-and a light scatter of particles drifts upward across the landscape. On
-load, the camera opens tight on the DNA sculpture and pulls back to the
-full view over about two seconds — no overlay, no text, just one camera
-move. A soft vignette at the screen edges keeps focus on the center.
+a light scatter of particles drifts upward across the landscape, the cloud
+deck drifts in parallax layers, and crepuscular rays fan out from the sun.
+On load the page plays a **blueprint-to-real** intro: it opens as a CAD
+sheet that draws its own frame and title block while the three monoliths
+appear as wireframe linework, then the world renders in around them as the
+camera pulls from a straight-on elevation out to the overview. A soft
+vignette at the screen edges keeps focus on the center.
 
 Clicking a monolith pops the detail panel out as a centered card over a
 dimmed backdrop (not a side drawer). Each panel has an expand button (top
@@ -91,11 +95,12 @@ Each entry in `PORTFOLIO_DATA.nodes` is one monolith:
   SHORT (a word or two) — it's a small placard, not a billboard. `title` is
   separate and can be longer; it's what shows as the panel heading once
   someone clicks in.
-- `markerType` — which topper sits above this monolith: `"helix"` (DNA,
-  used for About), `"gear"` (Work Experience), or `"tool"` (a hex nut,
-  Projects). Defaults to `"helix"` if omitted. Add a new shape by writing a
-  `buildXMarker(color)` function next to the existing ones in `scene.js`
-  and wiring it into `buildMarker()`.
+- `markerType` — which sculpture sits above this monolith: `"face"`
+  (About), `"heart"` (Work Experience), or `"hand"` (Projects). Defaults to
+  `"face"` if omitted. Add a new one by writing a `buildXMarker()` function
+  next to the existing ones in `scene.js`, ending it with `finishModel()`
+  (which registers shadows and collects materials for the focus-fade
+  system), then wiring it into `buildMarker()`.
 - `color` — hex number for this monolith's glow: it tints the small light
   glowing at its base, its topper, and the sign's accent rule and (at
   night) its glowing lettering, e.g. `0xe8862b`
@@ -194,6 +199,54 @@ Color tokens and fonts are CSS custom properties at the top of
 Plex Mono for data/labels) are loaded from Google Fonts in `index.html`'s
 `<head>`.
 
+## Rendering pipeline (scene.js)
+
+The scene is lit as a backlit exterior, not with flat ambient. Four things
+do most of the work, and they only look right together:
+
+- **sRGB output + ACES filmic tone mapping** (`renderer.outputEncoding`,
+  `renderer.toneMapping`). Without the first, every colour is written to
+  the screen in linear space, which is what makes untuned WebGL look
+  chalky. Without the second, the bright sun clips to flat white instead of
+  rolling off. Any texture used as a *colour* map must be flagged
+  `encoding = THREE.sRGBEncoding` or it will look washed out next to
+  everything else — the placard art and the cloud puffs both do this.
+- **Image-based lighting** (`buildEnvironment()`). A throwaway gradient-sky
+  scene is rendered into a prefiltered cubemap via `PMREMGenerator` and
+  assigned to `scene.environment`. This is what the glass and polished
+  ceramic sculptures actually reflect; without it they read as matte
+  plastic no matter how they're shaded. `envMapIntensity` on each material
+  is the main dial.
+- **Real shadows** — `PCFSoftShadowMap`, cast by a single directional key
+  light whose ortho frustum is deliberately tight around the island.
+  Shadow quality is resolution *per world unit*, so shrinking that frustum
+  is worth far more than raising `mapSize`.
+- **Bloom** (`buildComposer()`) — an `EffectComposer` with a single
+  `UnrealBloomPass`, threshold set high enough that ordinary lit surfaces
+  never bloom. Only the sun disc, the god rays and the emissive details
+  cross it, which keeps it reading as a lens response rather than a glow
+  filter. If the post-processing scripts fail to load, `composer` stays
+  undefined and `animate()` falls back to a direct render.
+
+`SUN_DIR` near `addLights()` is the single source of truth for the sun:
+the key light, the sun sprite, the god-ray fan and the sky's warm horizon
+band are all derived from it, so they can't drift out of agreement.
+
+## The island and the cloud sea
+
+`terrainHeight()` is still the authority for *placement* — every prop asks
+it where the ground is. The floating-island shape is applied separately, in
+`islandDrop()`, and only to the ground mesh's vertices: flat out to
+`ISLAND_RIM`, then curling over and falling away by `ISLAND_RADIUS`. Keeping
+the two apart is why nothing clips or floats. Trees and grass are clamped
+well inside `ISLAND_RIM` for the same reason.
+
+`buildIslandSkirt()` hangs a noisy rock cone below the rim — the part that
+actually sells "floating" rather than "hill". `buildCloudDeck()` layers
+three tiling cloud planes (scrolled at different rates for parallax) with
+~130 sprite puffs scattered over them; puffs on the sun's side are tinted
+warm and brightened, which is where most of the backlit look comes from.
+
 ## Ambient systems (scene.js)
 
 A few things run continuously in the background, all skipped automatically
@@ -209,10 +262,15 @@ under `prefers-reduced-motion`:
 - **Blueprint flash** — each monolith has an invisible wireframe twin
   (`node.wireMat`) sharing its geometry. `focusNode()` triggers a brief
   fade-in/hold/fade-out (`flashEnvelope`) over the solid rock on click.
-- **Intro camera move** — `init()` starts the camera tight on the hub, then
-  calls `startFlight(2400)` right after `bench-ready` fires to pull back to
-  the overview. `startFlight` now takes an optional duration; normal
-  click-to-focus flights still use the 900 ms default.
+- **Blueprint intro** — driven by one module-level dial, `blueprint`, that
+  runs 1 → 0 over `INTRO_SHEET_MS + INTRO_RENDER_MS`. At 1 the fog is
+  forced white and dense enough to swallow the world, the sky/clouds/sun
+  fade out, the lights drop to zero and the monoliths' wireframe twins are
+  held at full opacity as drafting linework; easing it to 0 renders the
+  scene in. The CSS sheet overlay (`#intro-screen`) draws in parallel and
+  is dismissed when `scene.js` dispatches `bench-intro-done`.
+  `window.skipBenchIntro()` ends it immediately — that's what the skip
+  button, deep links and the 7-second backstop in `ui.js` all call.
 
 ## The exploration game
 

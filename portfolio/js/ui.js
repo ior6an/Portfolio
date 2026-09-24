@@ -36,7 +36,7 @@
   const resumeModal = document.getElementById("resume-modal");
   const resumeClose = document.getElementById("resume-close");
   const resumeFrame = document.getElementById("resume-frame");
-  const RESUME_PATH = "resume/Jordan-Banh-Resume.pdf";
+  const RESUME_PATH = "resume/Resume_Jordan_Banh_Mechanical_Design_Engineering_2026-09.pdf";
   const themeToggle = document.getElementById("theme-toggle");
 
   const textToggle = document.getElementById("text-toggle");
@@ -71,6 +71,9 @@
       dot.classList.toggle("filled", explored.has(dot.dataset.id));
     });
     if (progressCount) progressCount.textContent = explored.size + "/" + SECTIONS.length + " explored";
+    // The hub sculpture mirrors the tracker: one gear arc lights per
+    // section, and the whole assembly winds up as the count rises.
+    if (window.setHubProgress) window.setHubProgress(explored.size, SECTIONS.length);
   }
   updateProgressUI();
 
@@ -122,34 +125,52 @@
     loadingScreen.classList.add("hidden");
   }
 
+  // While the blueprint intro plays, the HUD stays out of the way so the
+  // sheet is the only thing on screen. Set from JS, not markup, so a failed
+  // script can never leave the navigation permanently hidden.
+  document.body.classList.add("intro-playing");
+
+  function endIntro() {
+    introScreen.classList.add("hidden");
+    document.body.classList.remove("intro-playing");
+  }
+
   document.addEventListener("bench-ready", function () {
     benchReady = true;
     hideLoading();
     applyInitialHash();
   });
 
+  // Fired by scene.js when the scene has finished rendering itself in.
+  document.addEventListener("bench-intro-done", endIntro);
+
   document.addEventListener("bench-unavailable", function () {
     hideLoading();
     forceTextMode();
-    introScreen.classList.add("hidden");
+    endIntro();
   });
+
+  function skipIntro() {
+    if (window.skipBenchIntro) window.skipBenchIntro();
+    endIntro();
+  }
 
   function applyInitialHash() {
     const hash = window.location.hash.replace("#", "");
     if (!hash) return;
     if (hash === "contact") {
-      introScreen.classList.add("hidden");
+      skipIntro();
       contactModal.classList.add("open");
       return;
     }
     if (hash === "resume") {
-      introScreen.classList.add("hidden");
+      skipIntro();
       openResume();
       return;
     }
     const match = PORTFOLIO_DATA.nodes.some(function (n) { return n.id === hash; });
     if (match) {
-      introScreen.classList.add("hidden");
+      skipIntro();
       window.selectPortfolioNode(hash);
     }
   }
@@ -157,14 +178,17 @@
   // Fallback in case neither event fires quickly (slow script load etc.)
   window.addEventListener("load", function () {
     setTimeout(hideLoading, 1200);
+    // Backstop: if the scene never reports the intro finished (script error,
+    // no WebGL), the sheet must not sit there forever.
+    setTimeout(function () {
+      if (!introScreen.classList.contains("hidden")) skipIntro();
+    }, 7000);
   });
 
-  enterBtn.addEventListener("click", function () {
-    introScreen.classList.add("hidden");
-  });
+  enterBtn.addEventListener("click", skipIntro);
 
   enterTextBtn.addEventListener("click", function () {
-    introScreen.classList.add("hidden");
+    skipIntro();
     if (!forcedTextMode) {
       inTextMode = true;
       toggleTextMode(true);
@@ -386,7 +410,15 @@
   themeToggle.addEventListener("click", function () {
     nightMode = !nightMode;
     themeToggle.setAttribute("aria-pressed", String(nightMode));
-    themeToggle.textContent = nightMode ? "Day Mode" : "Night Mode";
+    // Only the label swaps — writing textContent on the button itself would
+    // destroy the number slot and the sun/moon mark inside it.
+    const label = themeToggle.querySelector(".nav-label");
+    if (label) label.textContent = nightMode ? "Day Mode" : "Night Mode";
+    else themeToggle.textContent = nightMode ? "Day Mode" : "Night Mode";
+    // Drives the HUD's own palette. The chrome sits directly on the scene
+    // with no panel behind it, so it has to invert with the world or it
+    // becomes dark-on-dark.
+    document.body.classList.toggle("night", nightMode);
     if (window.setPortfolioTheme) window.setPortfolioTheme(nightMode ? "night" : "day");
   });
 
